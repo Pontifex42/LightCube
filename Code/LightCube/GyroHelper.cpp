@@ -77,7 +77,7 @@ void LoopGyro()
     static ulong lastReadTime = 0;
 
     ulong now = millis();
-    if((now - lastReadTime) < 25)
+    if((now - lastReadTime) < 35)
         return;
     lastReadTime = now;
 

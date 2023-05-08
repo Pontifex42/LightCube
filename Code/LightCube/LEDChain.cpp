@@ -92,9 +92,9 @@ void Mode1()
 	lastActTime = now;
 
 	uint32_t col = palette[currentLay];
-	pixels.setBrightness(DEFAULT_BRIGHTNESS);
 	for (int i = 0; i < NUMPIXELS; i++)
-		pixels.setPixelColor(i, col); // YELLOW
+		pixels.setPixelColor(i, col);
+	pixels.setBrightness(DEFAULT_BRIGHTNESS);
 	pixels.show();   // Send the updated pixel colors to the hardware.
 }
 
@@ -165,13 +165,13 @@ void ModeX()
 		break;
 	}
 
-	pixels.setBrightness(DEFAULT_BRIGHTNESS);
 	for (int i = 0; i < NUMPIXELS; ++i)
 	{
 		orientation_t dir = LEDS[i];
 		uint32_t col = orient_colors[dir];
 		pixels.setPixelColor(i, col);
 	}
+	pixels.setBrightness(DEFAULT_BRIGHTNESS);
 	pixels.show();
 }
 #endif
@@ -221,7 +221,7 @@ void Mode2()
 		{
 			increment[side] = -increment[side];
 
-			// switch next side to this color
+			// switch next side to this color. Next sides brightness is 0 at this moment.
 			if (side != 3)
 				coloridx[side + 1] = coloridx[side];
 		}
@@ -230,9 +230,12 @@ void Mode2()
 			increment[side] = -increment[side];
 
 			// switch this side to next color
-			coloridx[side]++;
-			if (coloridx[side] >= (NUM_PREDEFINED_COLORS-1))
-				coloridx[side] = 0;
+			if (side == 0)
+			{
+				coloridx[0]++;
+				if (coloridx[side] >= (NUM_PREDEFINED_COLORS - 1))
+					coloridx[side] = 0;
+			}
 		}
 	}
 }
@@ -253,7 +256,6 @@ void Mode3()
 
 	// start with blue at front/back leds and red at left/right LEDs
 	// than toogle every 600 ms
-	pixels.setBrightness(DEFAULT_BRIGHTNESS);
 	if ((currentLay == DOWN) || (currentLay == UP))
 	{
 		for (int i = 0; i < 8; ++i)
@@ -278,6 +280,7 @@ void Mode3()
 			for (int i = 28; i < NUMPIXELS; ++i)
 				pixels.setPixelColor(i, colA);
 	}
+	pixels.setBrightness(DEFAULT_BRIGHTNESS);
 	pixels.show();
 }
 
@@ -298,7 +301,7 @@ void Mode4()
 	int intens = pixels.gamma8(intensityIdx);
 	pixels.setBrightness(intens);
 	for (int i = 0; i < NUMPIXELS; i++)
-		pixels.setPixelColor(i, col); // YELLOW
+		pixels.setPixelColor(i, col);
 	pixels.show();   // Send the updated pixel colors to the hardware.
 
 	intensityIdx += increment;
@@ -317,95 +320,50 @@ void Mode4()
 	}
 }
 
-// Mode 5: Similar to Mode 2, but without that complicated stuff
+// Mode 5: Give 2 colors to sides depending on lay
 void Mode5()
 {
-	// Colors for UP/DOWN/LEFT/RIGHT/FRONT/BACK
-	const uint32_t sideCol[6] = { COL_BLUE, COL_RED, COL_YELLOW, COL_CYAN, COL_GREEN, COL_PURPLE };
-	uint32_t orient_colors[6];
+	static uint32_t col1 = COL_BLUE;
+	static uint32_t col2 = COL_RED;
+	static orientation_t lastLay = FRONT;
 
-	// LED ordering is:
-	// DOWN, 6xFRONT, UP, UP, 6xLEFT, DOWN, DOWN, 6x BACK, UP, UP, 6xRIGHT, DOWN
-	const orientation_t LEDS[NUMPIXELS] = { FRONT, FRONT, FRONT, FRONT, FRONT, FRONT, FRONT, FRONT,
-											LEFT, LEFT, LEFT, LEFT, LEFT, LEFT, LEFT, LEFT,
-											BACK, BACK, BACK, BACK, BACK, BACK, BACK, BACK,
-											RIGHT, RIGHT, RIGHT, RIGHT, RIGHT, RIGHT, RIGHT, RIGHT };
-	switch (currentLay)
+	static bool firstrun = true;
+	if ((!firstrun) && (lastLay == currentLay))
+			return;
+	else
+		firstrun = false;
+	
+	lastLay = currentLay;
+	
+	col1 = palette[random(NUM_PREDEFINED_COLORS - 1)];
+	do
 	{
-	case LEFT: // right is up, 
-		orient_colors[DOWN] = sideCol[RIGHT];
-		orient_colors[UP] = sideCol[LEFT];
-		orient_colors[LEFT] = sideCol[DOWN];
-		orient_colors[RIGHT] = sideCol[UP];
-		orient_colors[FRONT] = sideCol[FRONT];
-		orient_colors[BACK] = sideCol[BACK];
-		break;
-	case RIGHT:
-		orient_colors[DOWN] = sideCol[LEFT];
-		orient_colors[UP] = sideCol[RIGHT];
-		orient_colors[LEFT] = sideCol[UP];
-		orient_colors[RIGHT] = sideCol[DOWN];
-		orient_colors[FRONT] = sideCol[FRONT];
-		orient_colors[BACK] = sideCol[BACK];
-		break;
-	case FRONT:
-		orient_colors[DOWN] = sideCol[BACK];
-		orient_colors[UP] = sideCol[FRONT];
-		orient_colors[LEFT] = sideCol[LEFT];
-		orient_colors[RIGHT] = sideCol[RIGHT];
-		orient_colors[FRONT] = sideCol[DOWN];
-		orient_colors[BACK] = sideCol[UP];
-		break;
-	case BACK:
-		orient_colors[DOWN] = sideCol[FRONT];
-		orient_colors[UP] = sideCol[BACK];
-		orient_colors[LEFT] = sideCol[LEFT];
-		orient_colors[RIGHT] = sideCol[RIGHT];
-		orient_colors[FRONT] = sideCol[UP];
-		orient_colors[BACK] = sideCol[DOWN];
-		break;
-	case UP: // up/down flipped
-		orient_colors[DOWN] = sideCol[UP];
-		orient_colors[UP] = sideCol[DOWN];
-		orient_colors[LEFT] = sideCol[LEFT];
-		orient_colors[RIGHT] = sideCol[RIGHT];
-		orient_colors[FRONT] = sideCol[FRONT];
-		orient_colors[BACK] = sideCol[BACK];
-		break;
-	case DOWN: // default: all sides have standard colors
-	default:
-		orient_colors[DOWN] = sideCol[DOWN];
-		orient_colors[UP] = sideCol[UP];
-		orient_colors[LEFT] = sideCol[LEFT];
-		orient_colors[RIGHT] = sideCol[RIGHT];
-		orient_colors[FRONT] = sideCol[FRONT];
-		orient_colors[BACK] = sideCol[BACK];
-		break;
-	}
+		col2 = palette[random(NUM_PREDEFINED_COLORS - 1)];
+	} while (col1 == col2);
 
+	for (int i = 0; i < NUMPIXELS/2; ++i)
+		pixels.setPixelColor(i, col1);
+
+	for (int i = NUMPIXELS / 2; i < NUMPIXELS; ++i)
+		pixels.setPixelColor(i, col2);
+	
 	pixels.setBrightness(DEFAULT_BRIGHTNESS);
-	for (int i = 0; i < NUMPIXELS; ++i)
-	{
-		orientation_t dir = LEDS[i];
-		uint32_t col = orient_colors[dir];
-		pixels.setPixelColor(i, col);
-	}
 	pixels.show();
 }
 
+// For shaking mode, do flicker in all colors like colors are mixed by the shaking
 void MakeRandomColors()
 {
 	static ulong lastRandom = 0;
 	ulong now = millis();
-	if ((now - lastRandom) < 250)
+	if ((now - lastRandom) < 300)
 		return;
 	lastRandom = now;
 
-	pixels.setBrightness(DEFAULT_BRIGHTNESS);
 	uint32_t col;
-	for (int i = 0; i < NUMPIXELS; i += 4)
+	for (int segment = 0; segment < 8; segment++)
 	{
-		long rnd = random(NUM_PREDEFINED_COLORS);
+		long rnd = random(NUM_PREDEFINED_COLORS-1);
 		switch (rnd)
 		{
 		case 0:
@@ -431,19 +389,19 @@ void MakeRandomColors()
 			break;
 		}
 
-		pixels.setPixelColor(i, col); // YELLOW
-		pixels.setPixelColor(i + 1, col); // YELLOW
-		pixels.setPixelColor(i + 2, col); // YELLOW
-		pixels.setPixelColor(i + 3, col); // YELLOW
+		int start = segment * 4;
+		for(int i = start; i < (start + 4); i++)
+			pixels.setPixelColor(i, col);
 	}
+	pixels.setBrightness(DEFAULT_BRIGHTNESS / 2);
 	pixels.show();
 }
 
 void SetupLEDChain()
 {
 	pixels.begin(); // INITIALIZE NeoPixel strip object (REQUIRED)
-	pixels.setBrightness(DEFAULT_BRIGHTNESS);
 	pixels.clear();
+	pixels.setBrightness(DEFAULT_BRIGHTNESS);
 	pixels.show();
 
 	randomSeed(42);
