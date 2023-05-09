@@ -23,20 +23,22 @@ Adafruit_NeoPixel pixels(NUMPIXELS, PIN_LED_BUS, NEO_GRB + NEO_KHZ800);
 int currentLEDMode = 0;
 #define NUMBER_OF_LED_MODES 5
 
+#define MAX_BRIGHTNESS 240 // overcurrent protection because of fake chinese MT3606 shit
+#ifdef DEBUG_LEDCHAIN
 void TestLED()
 {
 	for (int i = 0; i < NUMPIXELS; i++)
-		pixels.setPixelColor(i, pixels.Color(0, 0, 0)); // RED
+		pixels.setPixelColor(i, pixels.Color(0, 0, 0));
 	pixels.show();   // Send the updated pixel colors to the hardware.
 	delay(400); // Pause before next pass through loop
 
 	for (int i = 0; i < NUMPIXELS; i++)
-		pixels.setPixelColor(i, pixels.Color(128, 128, 128)); // RED
+		pixels.setPixelColor(i, pixels.Color(128, 128, 128));
 	pixels.show();   // Send the updated pixel colors to the hardware.
 	delay(400); // Pause before next pass through loop
 
 	for (int i = 0; i < NUMPIXELS; i++)
-		pixels.setPixelColor(i, pixels.Color(255, 255, 255)); // RED
+		pixels.setPixelColor(i, pixels.Color(MAX_BRIGHTNESS, MAX_BRIGHTNESS, MAX_BRIGHTNESS));
 	pixels.show();   // Send the updated pixel colors to the hardware.
 	delay(400); // Pause before next pass through loop
 }
@@ -65,6 +67,7 @@ void PrintColorCodes()
 	sprintf(hex, "%x", col);
 	DEBUG_PRINTLN("RED: 0x" + String(hex));
 }
+#endif
 
 void IncrementLEDMode()
 {
@@ -73,13 +76,18 @@ void IncrementLEDMode()
 		currentLEDMode = 0;
 }
 
-void SetWholeCube(uint8_t r, uint8_t g, uint8_t b, uint8_t bright)
+void SetWholeCube(uint32_t col, uint8_t bright)
 {
 	pixels.setBrightness(bright);
-	uint32_t col = pixels.Color(r, g, b);
 	for (int i = 0; i < NUMPIXELS; i++)
 		pixels.setPixelColor(i, col);
 	pixels.show();   // Send the updated pixel colors to the hardware.
+}
+
+void SetWholeCube(uint8_t r, uint8_t g, uint8_t b, uint8_t bright)
+{
+	uint32_t col = pixels.Color(r, g, b);
+	SetWholeCube(col, bright);
 }
 
 // Mode 1: color whole cube in a single color, depending on lay
@@ -92,10 +100,7 @@ void Mode1()
 	lastActTime = now;
 
 	uint32_t col = palette[currentLay];
-	for (int i = 0; i < NUMPIXELS; i++)
-		pixels.setPixelColor(i, col);
-	pixels.setBrightness(DEFAULT_BRIGHTNESS);
-	pixels.show();   // Send the updated pixel colors to the hardware.
+	SetWholeCube(col, DEFAULT_BRIGHTNESS);
 }
 
 #ifdef IGNORE // did not turn out as a good effect.
@@ -176,21 +181,45 @@ void ModeX()
 }
 #endif
 
-// Mode 2: Merry-go-round of colors, ignore gyro
+// Mode 2: Merry-go-round of colors, speed depends on lay
 void Mode2()
 {
+	ulong delay;
+	switch (currentLay)
+	{
+	case BACK:
+		delay = 2;
+		break;
+	case FRONT:
+		delay = 4;
+		break;
+	case UP:
+		delay = 8;
+		break;
+	case DOWN:
+	default:
+		delay = 16;
+		break;
+	case LEFT:
+		delay = 32;
+		break;
+	case RIGHT:
+		delay = 64;
+		break;
+	}
+
 	static ulong lastWaveTime = 0;
 	ulong now = millis();
-	if ((now - lastWaveTime) < 25)
+	if ((now - lastWaveTime) < delay)
 		return;
 	lastWaveTime = now;
 
-	pixels.setBrightness(255); // brightness considered by own calculation
+	pixels.setBrightness(MAX_BRIGHTNESS); // actual brightness done by own calculation of color values
 
 	// sequence:
 	// first side starts glowing up to the max
 	// if reached max, it is dimmed and in parrallel next side starts glowing in this color
-	// if a side reaches 0, it switches to next color
+	// if first side reaches 0, it switches to next color
 	static int coloridx[4] = { 0, -1, -1, -1 };
 	static uint32_t intensity[4] = { 0, 0, 0, 0 };
 	static uint32_t increment[4] = { 5, 5, 5, 5 };
@@ -217,7 +246,7 @@ void Mode2()
 
 		intensity[side] += increment[side];
 
-		if (intensity[side] >= 255)
+		if (intensity[side] >= MAX_BRIGHTNESS)
 		{
 			increment[side] = -increment[side];
 
@@ -284,35 +313,56 @@ void Mode3()
 	pixels.show();
 }
 
-// Mode 4: sinus waving all colors
+// Mode 4: sinus waving all colors. Speed depends on lay.
 void Mode4()
 {
+	ulong delay;
+	switch (currentLay)
+	{
+	case BACK:
+		delay = 1;
+		break;
+	case FRONT:
+		delay = 2;
+		break;
+	case UP:
+		delay = 4;
+		break;
+	case DOWN:
+	default:
+		delay = 8;
+		break;
+	case LEFT:
+		delay = 16;
+		break;
+	case RIGHT:
+		delay = 32;
+		break;
+	}
 	static ulong lastWaveTime = 0;
 	ulong now = millis();
-	if ((now - lastWaveTime) < 25)
+	if ((now - lastWaveTime) < delay)
 		return;
 	lastWaveTime = now;
 
-	static int intensityIdx = 0;
-	static int increment = 5;
+	static int intensityIdx = 10;
+	static int increment = 1;
 	static int colorIdx = 0;
 
 	int col = palette[colorIdx];
 	int intens = pixels.gamma8(intensityIdx);
-	pixels.setBrightness(intens);
-	for (int i = 0; i < NUMPIXELS; i++)
-		pixels.setPixelColor(i, col);
-	pixels.show();   // Send the updated pixel colors to the hardware.
+
+	SetWholeCube(col, intens);
 
 	intensityIdx += increment;
-	if (intensityIdx > 250)
+	if (intensityIdx > MAX_BRIGHTNESS)
 	{
-		intensityIdx = 245;
+		intensityIdx = MAX_BRIGHTNESS;
 		increment = -increment;
 	}
-	else if (intensityIdx < 0)
+	else if (intensityIdx < 22)
 	{
-		intensityIdx = 5;
+		intensityIdx = 22;
 		increment = -increment;
 		colorIdx++;
 		if (colorIdx >= NUM_PREDEFINED_COLORS)
@@ -320,7 +370,7 @@ void Mode4()
 	}
 }
 
-// Mode 5: Give 2 colors to sides depending on lay
+// Mode 5: Give 2 random colors to adjanced sides depending on lay
 void Mode5()
 {
 	static uint32_t col1 = COL_BLUE;
@@ -361,33 +411,9 @@ void MakeRandomColors()
 	lastRandom = now;
 
 	uint32_t col;
-	for (int segment = 0; segment < 8; segment++)
+	for (int segment = 0; segment < 8; segment++) // splitting 32 LEDs into 8 segments, each with 4 LEDs
 	{
-		long rnd = random(NUM_PREDEFINED_COLORS-1);
-		switch (rnd)
-		{
-		case 0:
-			col = COL_BLUE;
-			break;
-		case 1:
-			col = COL_GREEN;
-			break;
-		case 2:
-			col = COL_RED;
-			break;
-		case 3:
-			col = COL_YELLOW;
-			break;
-		case 4:
-			col = COL_CYAN;
-			break;
-		case 5:
-			col = COL_PURPLE;
-			break;
-		default:
-			continue; // pixel remains unchanged
-			break;
-		}
+		col = palette[random(NUM_PREDEFINED_COLORS - 1)];
 
 		int start = segment * 4;
 		for(int i = start; i < (start + 4); i++)
@@ -400,9 +426,7 @@ void MakeRandomColors()
 void SetupLEDChain()
 {
 	pixels.begin(); // INITIALIZE NeoPixel strip object (REQUIRED)
-	pixels.clear();
-	pixels.setBrightness(DEFAULT_BRIGHTNESS);
-	pixels.show();
+	SetWholeCube(COL_DARK, DEFAULT_BRIGHTNESS);
 
 	randomSeed(42);
 	// PrintColorCodes();
@@ -432,10 +456,8 @@ void LoopLEDChain()
 		Mode4();
 		break;
 	case 4:
-		Mode5();
-		break;
 	default:
-		Mode1();
+		Mode5();
 		break;
 	}
 }

@@ -15,16 +15,9 @@
 #endif
 #endif
 
-#ifdef DEBUG_GYRO
-const String orientationText[6] = { "UP", "DOWN", "LEFT", "RIGHT", "FRONT", "BACK" };
-#endif
-
-
 Adafruit_MPU6050 mpu;
 orientation_t currentLay; // Says which direction faces down
 bool isShaking;
-int shakeCounter;
-
 
 orientation_t GetOrientation()
 {
@@ -50,13 +43,17 @@ orientation_t GetOrientation()
     else //  if ((zabs > xabs) && (zabs > yabs))
         facingdown = (zacc > 0) ? UP : DOWN;
 
+#ifdef DEBUG_GYRO
+    const String orientationText[6] = { "UP", "DOWN", "LEFT", "RIGHT", "FRONT", "BACK" };
     DEBUG_PRINTLN(orientationText[facingdown]);
+#endif
 
     return facingdown;
 }
 
 void SetupGyro()
 {
+    Wire.begin(PIN_SDA, PIN_SCL);
     if (!mpu.begin())
     {
         DEBUG_PRINTLN("Failed to find MPU6050 gyro sensor.");
@@ -68,11 +65,11 @@ void SetupGyro()
 
     currentLay = DOWN;
     isShaking = false;
-    shakeCounter = 0;
 }
 
 void LoopGyro()
 {
+    static int shakeCounter = 0;
     static ulong lastChangeTime = 0;
     static ulong lastReadTime = 0;
 
