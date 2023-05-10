@@ -6,7 +6,7 @@
 #define COL_CYAN	0x0000ffb0u		// GREEN | BLUE
 #define COL_YELLOW  0x00f0f000u		// RED | GREEN
 #define COL_PURPLE  0x00ff0090u		// RED | BLUE
-#define COL_WHITE	0x00ffffffu		// BLUE | GREEN | RED
+#define COL_WHITE	0x00f0f0f0u		// BLUE | GREEN | RED
 
 #define NUM_PREDEFINED_COLORS 7
 

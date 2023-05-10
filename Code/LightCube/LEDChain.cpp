@@ -21,7 +21,7 @@ const uint32_t palette[NUM_PREDEFINED_COLORS] = { COL_BLUE, COL_GREEN, COL_RED, 
 Adafruit_NeoPixel pixels(NUMPIXELS, PIN_LED_BUS, NEO_GRB + NEO_KHZ800);
 
 int currentLEDMode = 0;
-#define NUMBER_OF_LED_MODES 5
+#define NUMBER_OF_LED_MODES 6
 
 #define MAX_BRIGHTNESS 240 // overcurrent protection because of fake chinese MT3606 shit
 #ifdef DEBUG_LEDCHAIN
@@ -95,7 +95,7 @@ void Mode1()
 {
 	static ulong lastActTime = 0;
 	ulong now = millis();
-	if ((now - lastActTime) < 200) // handle only once every 200 ms
+	if ((now - lastActTime) < 200) // handle only once every 200 ms to avoid flickering
 		return;
 	lastActTime = now;
 
@@ -234,7 +234,7 @@ void Mode2()
 		g = (g * intens) >> 8;
 		b = (b * intens) >> 8;
 		int startLED = side * 8;
-		for(int i = startLED; i < (startLED + 8); ++i)
+		for (int i = startLED; i < (startLED + 8); ++i)
 			pixels.setPixelColor(i, r, g, b);
 	}
 	pixels.show();
@@ -298,16 +298,16 @@ void Mode3()
 	}
 	else
 	{
-			for (int i = 0; i < 4; ++i)
-				pixels.setPixelColor(i, colA);
-			for (int i = 4; i < 12; ++i)
-				pixels.setPixelColor(i, colB);
-			for (int i = 12; i < 20; ++i)
-				pixels.setPixelColor(i, colA);
-			for (int i = 20; i < 28; ++i)
-				pixels.setPixelColor(i, colB);
-			for (int i = 28; i < NUMPIXELS; ++i)
-				pixels.setPixelColor(i, colA);
+		for (int i = 0; i < 4; ++i)
+			pixels.setPixelColor(i, colA);
+		for (int i = 4; i < 12; ++i)
+			pixels.setPixelColor(i, colB);
+		for (int i = 12; i < 20; ++i)
+			pixels.setPixelColor(i, colA);
+		for (int i = 20; i < 28; ++i)
+			pixels.setPixelColor(i, colB);
+		for (int i = 28; i < NUMPIXELS; ++i)
+			pixels.setPixelColor(i, colA);
 	}
 	pixels.setBrightness(DEFAULT_BRIGHTNESS);
 	pixels.show();
@@ -379,26 +379,117 @@ void Mode5()
 
 	static bool firstrun = true;
 	if ((!firstrun) && (lastLay == currentLay))
-			return;
+		return;
 	else
 		firstrun = false;
-	
+
 	lastLay = currentLay;
-	
+
 	col1 = palette[random(NUM_PREDEFINED_COLORS - 1)];
 	do
 	{
 		col2 = palette[random(NUM_PREDEFINED_COLORS - 1)];
 	} while (col1 == col2);
 
-	for (int i = 0; i < NUMPIXELS/2; ++i)
+	for (int i = 0; i < NUMPIXELS / 2; ++i)
 		pixels.setPixelColor(i, col1);
 
 	for (int i = NUMPIXELS / 2; i < NUMPIXELS; ++i)
 		pixels.setPixelColor(i, col2);
-	
+
 	pixels.setBrightness(DEFAULT_BRIGHTNESS);
 	pixels.show();
+}
+
+// Mode 6: Let a single light go up and down a spiral
+void Mode6()
+{
+	ulong delay;
+	switch (currentLay)
+	{
+	case BACK:
+		delay = 8;
+		break;
+	case FRONT:
+		delay = 16;
+		break;
+	case UP:
+		delay = 32;
+		break;
+	case DOWN:
+	default:
+		delay = 64;
+		break;
+	case LEFT:
+		delay = 128;
+		break;
+	case RIGHT:
+		delay = 256;
+		break;
+	}
+	static ulong lastTime = 0;
+	ulong now = millis();
+	if ((now - lastTime) < delay)
+		return;
+	lastTime = now;
+
+	const int LED_sequence[NUMPIXELS] = {
+		0, 15, 16, 31,
+		1, 14, 17, 30,
+		2, 13, 18, 29,
+		3, 12, 19, 28,
+		4, 11, 20, 27,
+		5, 10, 21, 26,
+		6,  9, 22, 25,
+		7,  8, 23, 24 };
+
+	for (int i = 0; i < NUMPIXELS; ++i)
+		pixels.setPixelColor(i, COL_DARK);
+
+	static int col1 = palette[random(NUM_PREDEFINED_COLORS - 1)];
+	static int col2 = palette[random(NUM_PREDEFINED_COLORS - 1)];
+
+	static int led_idx1 = 0;
+	static int led_idx2 = (NUMPIXELS / 2);
+	int led1 = LED_sequence[led_idx1];
+	int led2 = LED_sequence[led_idx2];
+
+	pixels.setPixelColor(led1, col1);
+	pixels.setPixelColor(led2, col2);
+
+	pixels.show();
+
+	led_idx1++;
+	if (led_idx1 >= NUMPIXELS)
+	{
+		led_idx1 = 0;
+		col1 = palette[random(NUM_PREDEFINED_COLORS - 1)];
+	}
+	led_idx2++;
+	if (led_idx2 >= NUMPIXELS)
+	{
+		led_idx2 = 0;
+		col2 = palette[random(NUM_PREDEFINED_COLORS - 1)];
+	}
+}
+
+// Mode7: Fill cube with a random color, similar to mode 1
+void Mode7()
+{
+	static ulong lastActTime = 0;
+	ulong now = millis();
+	if ((now - lastActTime) < 200) // handle only once every 200 ms to avoid flickering
+		return;
+	lastActTime = now;
+
+	static int lastLay = -1;
+	if (lastLay == currentLay)
+		return;
+	lastLay = currentLay;
+
+	uint32_t col = ((random(0xf0) << 16)| (random(0xf0) << 8) | random(0xf0));
+
+	SetWholeCube(col, DEFAULT_BRIGHTNESS);
 }
 
 // For shaking mode, do flicker in all colors like colors are mixed by the shaking
@@ -416,7 +507,7 @@ void MakeRandomColors()
 		col = palette[random(NUM_PREDEFINED_COLORS - 1)];
 
 		int start = segment * 4;
-		for(int i = start; i < (start + 4); i++)
+		for (int i = start; i < (start + 4); i++)
 			pixels.setPixelColor(i, col);
 	}
 	pixels.setBrightness(DEFAULT_BRIGHTNESS / 2);
@@ -456,8 +547,13 @@ void LoopLEDChain()
 		Mode4();
 		break;
 	case 4:
-	default:
 		Mode5();
+	case 5:
+		Mode6();
+		break;
+	case 6:
+	default:
+		Mode7();
 		break;
 	}
 }
